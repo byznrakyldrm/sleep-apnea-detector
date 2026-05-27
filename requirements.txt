@@ -1,7 +1,7 @@
 streamlit
 neurokit2
 xgboost
-scikit-learn
+scikit-learn==1.6.1
 antropy
 numpy
 pandas
