@@ -1,0 +1,9 @@
+streamlit
+neurokit2
+xgboost
+scikit-learn
+antropy
+numpy
+pandas
+matplotlib
+wfdb
