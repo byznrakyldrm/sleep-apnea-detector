@@ -1,8 +1,8 @@
 streamlit
-neurokit2
+neurokit2==0.2.13
 xgboost
 scikit-learn==1.6.1
-antropy
+antropy==0.2.2
 numpy
 pandas
 matplotlib
