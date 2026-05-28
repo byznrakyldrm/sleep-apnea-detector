@@ -56,7 +56,7 @@ def tahmin_yap(ozellikler):
     X = scaler.transform(X)
     X = selector.transform(X)
     olasilik = model.predict_proba(X)[0][1]
-    tahmin   = int(olasilik >= 0.45)
+    tahmin   = int(olasilik >= 0.55)
     return tahmin, olasilik
 
 def tek_dakika_analiz(ecg_segment, fs=100):
@@ -231,7 +231,7 @@ else:
             apne_sayisi  = sum(1 for s in gecerli if s['tahmin'] == 1)
             apne_orani   = apne_sayisi / len(gecerli) * 100
 
-            if apne_orani >= 30:
+            if apne_orani >= 40:
                 st.markdown(f"""
                 <div style='background:#FEE2E2;border:2px solid #F87171;border-radius:16px;
                             padding:24px;text-align:center;margin:16px 0'>
