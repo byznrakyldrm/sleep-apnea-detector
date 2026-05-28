@@ -15,7 +15,7 @@ st.set_page_config(
 
 @st.cache_resource
 def modelleri_yukle():
-    with open("full_pipeline.pkl", "rb") as f:
+    with open("full_pipeline_v3.pkl", "rb") as f:
         p = pickle.load(f)
     return p['model'], p['scaler'], p['selector'], p['imputer']
 
