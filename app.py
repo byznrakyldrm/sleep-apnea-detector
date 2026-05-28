@@ -6,7 +6,8 @@ import antropy
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import io
-
+import sklearn
+st.write(f"sklearn: {sklearn.__version__}, antropy: {antropy.__version__}")
 st.set_page_config(
     page_title="Uyku Apnesi Dedektörü",
     page_icon="🫀",
