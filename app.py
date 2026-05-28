@@ -72,11 +72,18 @@ def tek_dakika_analiz(ecg_segment, fs=100):
     if ozellikler is None:
         return None, None, None
     
-    # DEBUG — özellikleri göster
-    st.write(f"sample_entropy: {ozellikler[11]:.4f}, dfa: {ozellikler[12]:.4f}")
+    X = np.array([ozellikler])
+    X = np.where(np.isinf(X), np.nan, X)
+    X_imp = imputer.transform(X)
+    X_sc  = scaler.transform(X_imp)
+    X_sel = selector.transform(X_sc)
+    prob  = model.predict_proba(X_sel)[0][1]
     
-    tahmin, olasilik = tahmin_yap(ozellikler)
-    return tahmin, olasilik, r_tepeleri
+    # DEBUG
+    st.write(f"Olasılık: {prob*100:.1f}%")
+    
+    tahmin = int(prob >= 0.55)
+    return tahmin, prob, r_tepeleri
 
 def cok_dakika_analiz(ecg_uzun, fs=100):
     samples_per_min = 60 * fs
