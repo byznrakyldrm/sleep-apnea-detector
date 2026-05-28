@@ -6,8 +6,7 @@ import antropy
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import io
-import sklearn
-st.write(f"sklearn: {sklearn.__version__}, antropy: {antropy.__version__}")
+
 st.set_page_config(
     page_title="Uyku Apnesi Dedektörü",
     page_icon="🫀",
@@ -16,28 +15,12 @@ st.set_page_config(
 
 @st.cache_resource
 def modelleri_yukle():
-    with open("full_pipeline_v3.pkl", "rb") as f:
+    with open("full_pipeline_v4.pkl", "rb") as f:
         p = pickle.load(f)
-    return p['model'], p['scaler'], p['selector'], p['imputer']
+    return p['model'], p['scaler'], p['selector'], p['col_means']
 
-model, scaler, selector, imputer = modelleri_yukle()
-# DEBUG
-import sklearn, xgboost
-st.sidebar.write(f"sklearn: {sklearn.__version__}")
-st.sidebar.write(f"xgboost: {xgboost.__version__}")
+model, scaler, selector, col_means = modelleri_yukle()
 
-test_feat = [970.3, 15.2, 8.1, 0.0, 850.0, 1100.0, 250.0, 1.8, 5.7, 15.2, 0.37, 1.48, 1.84]
-X_test = np.array([test_feat])
-X_test = np.where(np.isinf(X_test), np.nan, X_test)
-try:
-    X_test = imputer.transform(X_test)
-    X_test = scaler.transform(X_test)
-    X_test = selector.transform(X_test)
-    prob = model.predict_proba(X_test)[0][1]
-    st.sidebar.write(f"Test tahmini: {prob*100:.1f}%")
-except Exception as e:
-    st.sidebar.write(f"Hata: {e}")
-    
 def ozellik_cikar(rr):
     rr = np.array(rr, dtype=float)
     if len(rr) < 3:
@@ -66,10 +49,10 @@ def ozellik_cikar(rr):
 
 def tahmin_yap(ozellikler):
     X = np.array([ozellikler])
-    try:
-        X = imputer.transform(X)
-    except:
-        X = np.nan_to_num(X, nan=0.0, posinf=0.0, neginf=0.0)
+    X = np.where(np.isinf(X), np.nan, X)
+    for i in range(X.shape[1]):
+        mask = np.isnan(X[:, i])
+        X[mask, i] = col_means[i]
     X = scaler.transform(X)
     X = selector.transform(X)
     olasilik = model.predict_proba(X)[0][1]
@@ -88,9 +71,7 @@ def tek_dakika_analiz(ecg_segment, fs=100):
     ozellikler = ozellik_cikar(rr)
     if ozellikler is None:
         return None, None, None
-    
     tahmin, olasilik = tahmin_yap(ozellikler)
-    st.write(f"Olasılık: {olasilik*100:.1f}%")
     return tahmin, olasilik, r_tepeleri
 
 def cok_dakika_analiz(ecg_uzun, fs=100):
@@ -309,7 +290,7 @@ with st.expander("ℹ️ Model hakkında"):
     | Model | XGBoost (optimize edilmiş) |
     | AUC (test) | 0.8479 |
     | Apne recall | %80 |
-    | Threshold | 0.45 |
+    | Threshold | 0.55 |
     | Veri seti | PhysioNet Apnea-ECG (70 kayıt) |
     | Özellik sayısı | 10 HRV özelliği |
     """)
