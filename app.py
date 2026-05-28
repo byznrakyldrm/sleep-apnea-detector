@@ -241,7 +241,7 @@ else:
                         {apne_sayisi} / {len(gecerli)} dakikada apne bulundu ({apne_orani:.1f}%)
                     </p>
                 </div>""", unsafe_allow_html=True)
-                elif apne_orani >= 33:
+            elif apne_orani >= 33:
                     st.markdown(f"""
                     <div style='background:#FEF3C7;border:2px solid #F59E0B;border-radius:16px;
                                 padding:24px;text-align:center;margin:16px 0'>
