@@ -63,7 +63,9 @@ def tek_dakika_analiz(ecg_segment, fs=100):
     try:
         signals, info = nk.ecg_process(ecg_segment, sampling_rate=fs)
         r_tepeleri = info['ECG_R_Peaks']
-    except:
+        st.write(f"Debug — R tepesi: {len(r_tepeleri)}, RR ort: {np.mean(np.diff(r_tepeleri)/fs*1000):.1f}ms")
+    except Exception as e:
+        st.write(f"Debug hata: {e}")
         return None, None, None
     if len(r_tepeleri) < 5:
         return None, None, None
