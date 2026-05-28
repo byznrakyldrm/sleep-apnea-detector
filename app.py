@@ -63,9 +63,7 @@ def tek_dakika_analiz(ecg_segment, fs=100):
     try:
         signals, info = nk.ecg_process(ecg_segment, sampling_rate=fs)
         r_tepeleri = info['ECG_R_Peaks']
-        st.write(f"Debug — R tepesi: {len(r_tepeleri)}, RR ort: {np.mean(np.diff(r_tepeleri)/fs*1000):.1f}ms")
-    except Exception as e:
-        st.write(f"Debug hata: {e}")
+    except:
         return None, None, None
     if len(r_tepeleri) < 5:
         return None, None, None
@@ -73,6 +71,10 @@ def tek_dakika_analiz(ecg_segment, fs=100):
     ozellikler = ozellik_cikar(rr)
     if ozellikler is None:
         return None, None, None
+    
+    # DEBUG — özellikleri göster
+    st.write(f"sample_entropy: {ozellikler[11]:.4f}, dfa: {ozellikler[12]:.4f}")
+    
     tahmin, olasilik = tahmin_yap(ozellikler)
     return tahmin, olasilik, r_tepeleri
 
