@@ -21,7 +21,23 @@ def modelleri_yukle():
     return p['model'], p['scaler'], p['selector'], p['imputer']
 
 model, scaler, selector, imputer = modelleri_yukle()
+# DEBUG
+import sklearn, xgboost
+st.sidebar.write(f"sklearn: {sklearn.__version__}")
+st.sidebar.write(f"xgboost: {xgboost.__version__}")
 
+test_feat = [970.3, 15.2, 8.1, 0.0, 850.0, 1100.0, 250.0, 1.8, 5.7, 15.2, 0.37, 1.48, 1.84]
+X_test = np.array([test_feat])
+X_test = np.where(np.isinf(X_test), np.nan, X_test)
+try:
+    X_test = imputer.transform(X_test)
+    X_test = scaler.transform(X_test)
+    X_test = selector.transform(X_test)
+    prob = model.predict_proba(X_test)[0][1]
+    st.sidebar.write(f"Test tahmini: {prob*100:.1f}%")
+except Exception as e:
+    st.sidebar.write(f"Hata: {e}")
+    
 def ozellik_cikar(rr):
     rr = np.array(rr, dtype=float)
     if len(rr) < 3:
