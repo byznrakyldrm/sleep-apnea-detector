@@ -231,26 +231,36 @@ else:
             apne_sayisi  = sum(1 for s in gecerli if s['tahmin'] == 1)
             apne_orani   = apne_sayisi / len(gecerli) * 100
 
-            if apne_sayisi >= 4:
+            if apne_orani >= 50:
                 st.markdown(f"""
-                <div style='background:#FEE2E2;border:2px solid #F87171;border-radius:16px;
-                            padding:24px;text-align:center;margin:16px 0'>
-                    <div style='font-size:3rem'>⚠️</div>
-                    <h2 style='color:#DC2626;margin:8px 0'>UYKU APNESİ TESPİT EDİLDİ</h2>
+                <div style='background:#FEE2E2;border:2px solid #DC2626;border-radius:16px;
+                        padding:24px;text-align:center;margin:16px 0'>
+                    <div style='font-size:3rem'>🚨</div>
+                    <h2 style='color:#DC2626;margin:8px 0'>ORTA/AĞIR UYKU APNESİ</h2>
                     <p style='color:#991B1B;font-size:1.1rem;margin:4px 0'>
                         {apne_sayisi} / {len(gecerli)} dakikada apne bulundu ({apne_orani:.1f}%)
                     </p>
                 </div>""", unsafe_allow_html=True)
+                elif apne_orani >= 33:
+                    st.markdown(f"""
+                    <div style='background:#FEF3C7;border:2px solid #F59E0B;border-radius:16px;
+                                padding:24px;text-align:center;margin:16px 0'>
+                        <div style='font-size:3rem'>⚠️</div>
+                        <h2 style='color:#D97706;margin:8px 0'>HAFİF UYKU APNESİ</h2>
+                        <p style='color:#92400E;font-size:1.1rem;margin:4px 0'>
+                            {apne_sayisi} / {len(gecerli)} dakikada apne bulundu ({apne_orani:.1f}%)
+                        </p>
+                    </div>""", unsafe_allow_html=True)
             else:
-                st.markdown(f"""
-                <div style='background:#D1FAE5;border:2px solid #34D399;border-radius:16px;
-                            padding:24px;text-align:center;margin:16px 0'>
-                    <div style='font-size:3rem'>✅</div>
-                    <h2 style='color:#065F46;margin:8px 0'>NORMAL UYKU</h2>
-                    <p style='color:#047857;font-size:1.1rem;margin:4px 0'>
-                        {apne_sayisi} / {len(gecerli)} dakikada apne bulundu ({apne_orani:.1f}%)
-                    </p>
-                </div>""", unsafe_allow_html=True)
+                    st.markdown(f"""
+                    <div style='background:#D1FAE5;border:2px solid #34D399;border-radius:16px;
+                                padding:24px;text-align:center;margin:16px 0'>
+                        <div style='font-size:3rem'>✅</div>
+                        <h2 style='color:#065F46;margin:8px 0'>NORMAL UYKU</h2>
+                        <p style='color:#047857;font-size:1.1rem;margin:4px 0'>
+                            {apne_sayisi} / {len(gecerli)} dakikada apne bulundu ({apne_orani:.1f}%)
+                        </p>
+                    </div>""", unsafe_allow_html=True)
 
             st.markdown("#### 🗺️ Dakika Dakika Apne Haritası")
             fig, ax = plt.subplots(figsize=(10, 2.5))
