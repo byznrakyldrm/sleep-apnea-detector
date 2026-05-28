@@ -1,9 +1,9 @@
 streamlit
-neurokit2==0.2.13
-xgboost==2.0.3
-scikit-learn==1.6.1
-antropy==0.2.2
-numpy<2.0
+neurokit2
+xgboost
+scikit-learn
+antropy
+numpy
 pandas
 matplotlib
-wfdb==4.3.1
+wfdb
