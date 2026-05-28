@@ -231,7 +231,7 @@ else:
             apne_sayisi  = sum(1 for s in gecerli if s['tahmin'] == 1)
             apne_orani   = apne_sayisi / len(gecerli) * 100
 
-            if apne_orani >= 40:
+            if apne_sayisi >= 4:
                 st.markdown(f"""
                 <div style='background:#FEE2E2;border:2px solid #F87171;border-radius:16px;
                             padding:24px;text-align:center;margin:16px 0'>
