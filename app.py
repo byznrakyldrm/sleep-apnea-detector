@@ -8,10 +8,75 @@ import matplotlib.patches as mpatches
 import io
 
 st.set_page_config(
-    page_title="Uyku Apnesi Dedektörü",
+    page_title="ApneaWatch — Sleep Apnea Detector",
     page_icon="🫀",
-    layout="centered"
+    layout="wide"
 )
+
+st.markdown("""
+<style>
+[data-testid="stAppViewContainer"] { background: #0F1117; }
+[data-testid="stSidebar"] { background: #161B27; border-right: 1px solid #1E2A3A; }
+
+.aw-header {
+    display: flex; align-items: center; gap: 16px;
+    padding: 1.5rem 0 1rem;
+    border-bottom: 1px solid #1E2A3A;
+    margin-bottom: 1.5rem;
+}
+.aw-logo {
+    width: 44px; height: 44px; border-radius: 12px;
+    background: linear-gradient(135deg, #1D4ED8, #7C3AED);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+}
+.aw-title { font-size: 1.4rem; font-weight: 700; color: #F1F5F9; margin: 0; }
+.aw-sub   { font-size: 0.8rem; color: #64748B; margin: 2px 0 0; }
+
+.badge {
+    display: inline-block; padding: 3px 12px; border-radius: 999px;
+    font-size: 11px; font-weight: 600; letter-spacing: .03em;
+}
+.badge-demo { background: #1E293B; color: #94A3B8; border: 1px solid #334155; }
+
+.result-card {
+    border-radius: 16px; padding: 2rem; text-align: center;
+    margin: 1rem 0;
+}
+.result-card.danger  { background: #1c0a0a; border: 1.5px solid #7f1d1d; }
+.result-card.warning { background: #1c1300; border: 1.5px solid #78350f; }
+.result-card.success { background: #052e16; border: 1.5px solid #14532d; }
+
+.result-card .rc-icon  { font-size: 3rem; margin-bottom: .5rem; }
+.result-card .rc-title { font-size: 1.5rem; font-weight: 700; margin: .25rem 0; }
+.result-card .rc-sub   { font-size: .9rem; margin: .25rem 0; opacity: .8; }
+
+.result-card.danger  .rc-title { color: #fca5a5; }
+.result-card.danger  .rc-sub   { color: #f87171; }
+.result-card.warning .rc-title { color: #fcd34d; }
+.result-card.warning .rc-sub   { color: #fbbf24; }
+.result-card.success .rc-title { color: #86efac; }
+.result-card.success .rc-sub   { color: #4ade80; }
+
+.metric-box {
+    background: #161B27; border: 1px solid #1E2A3A;
+    border-radius: 12px; padding: 1rem 1.25rem;
+    text-align: center;
+}
+.metric-box .mb-val { font-size: 1.8rem; font-weight: 700; color: #F1F5F9; }
+.metric-box .mb-lbl { font-size: .75rem; color: #64748B; margin-top: 4px; text-transform: uppercase; letter-spacing: .05em; }
+
+.upload-zone {
+    border: 1.5px dashed #1E3A5F; border-radius: 16px;
+    padding: 2.5rem; text-align: center; background: #0D1520;
+}
+.upload-zone h3 { color: #93C5FD; margin: .5rem 0 .25rem; font-size: 1rem; }
+.upload-zone p  { color: #475569; font-size: .85rem; margin: 0; }
+
+.night-map  { display: flex; flex-wrap: wrap; gap: 3px; margin: .75rem 0; }
+.nm-min     { width: 12px; height: 28px; border-radius: 3px; }
+</style>
+""", unsafe_allow_html=True)
 
 @st.cache_resource
 def modelleri_yukle():
@@ -59,180 +124,282 @@ def tahmin_yap(ozellikler):
     tahmin   = int(olasilik >= 0.55)
     return tahmin, olasilik
 
-def gece_analiz(ecg_uzun, fs=100, ilerleme_cubugu=None):
+def gece_analiz_canli(ecg_uzun, fs=100):
     samples_per_min = 60 * fs
     n_dakika = len(ecg_uzun) // samples_per_min
     sonuclar = []
+
+    progress    = st.progress(0, text="Analysis starting...")
+    grafik_alani = st.empty()
+    durum_alani  = st.empty()
+
     for i in range(n_dakika):
         seg = ecg_uzun[i*samples_per_min:(i+1)*samples_per_min]
         try:
             signals, info = nk.ecg_process(seg, sampling_rate=fs)
             r_tepeleri = info['ECG_R_Peaks']
             if len(r_tepeleri) < 5:
-                sonuclar.append({'dakika': i+1, 'tahmin': None, 'olasilik': None})
-                continue
-            rr = np.diff(r_tepeleri) / fs * 1000
-            ozellikler = ozellik_cikar(rr)
-            if ozellikler is None:
-                sonuclar.append({'dakika': i+1, 'tahmin': None, 'olasilik': None})
-                continue
-            tahmin, olasilik = tahmin_yap(ozellikler)
-            sonuclar.append({'dakika': i+1, 'tahmin': tahmin, 'olasilik': olasilik})
+                sonuclar.append({'dakika': i+1, 'tahmin': None, 'olasilik': None, 'rr': None})
+            else:
+                rr = np.diff(r_tepeleri) / fs * 1000
+                ozellikler = ozellik_cikar(rr)
+                if ozellikler is None:
+                    sonuclar.append({'dakika': i+1, 'tahmin': None, 'olasilik': None, 'rr': None})
+                else:
+                    tahmin, olasilik = tahmin_yap(ozellikler)
+                    sonuclar.append({'dakika': i+1, 'tahmin': tahmin, 'olasilik': olasilik, 'rr': rr})
         except:
-            sonuclar.append({'dakika': i+1, 'tahmin': None, 'olasilik': None})
-        if ilerleme_cubugu:
-            ilerleme_cubugu.progress((i+1)/n_dakika, text=f"Dakika {i+1}/{n_dakika} analiz ediliyor...")
+            sonuclar.append({'dakika': i+1, 'tahmin': None, 'olasilik': None, 'rr': None})
+
+        # Her dakika grafiği güncelle
+        gecerli_su_ana = [s for s in sonuclar if s['tahmin'] is not None]
+        if gecerli_su_ana:
+            fig, ax = plt.subplots(figsize=(14, 3))
+            fig.patch.set_facecolor('#0F1117')
+            ax.set_facecolor('#0D1520')
+            dklar  = [s['dakika']   for s in gecerli_su_ana]
+            olasil = [s['olasilik'] for s in gecerli_su_ana]
+            renkler = ['#ef4444' if s['tahmin'] == 1 else '#22c55e' for s in gecerli_su_ana]
+            ax.bar(dklar, olasil, color=renkler, width=0.85, alpha=0.85)
+            ax.axhline(0.55, color='#F59E0B', linewidth=1, linestyle='--', label='Threshold (0.55)')
+            ax.set_xlim(0, n_dakika + 1)
+            ax.set_ylim(0, 1)
+            ax.set_xlabel("Minute", color='#64748B', fontsize=9)
+            ax.set_ylabel("Apnea Probability", color='#64748B', fontsize=9)
+            ax.tick_params(colors='#64748B', labelsize=8)
+            for spine in ax.spines.values():
+                spine.set_edgecolor('#1E2A3A')
+            ax.legend(fontsize=8, facecolor='#161B27', labelcolor='#94A3B8', edgecolor='#1E2A3A')
+            grafik_alani.pyplot(fig)
+            plt.close()
+
+            # Son dakikanın durumunu göster
+            son = gecerli_su_ana[-1]
+            durum_renk = "#ef4444" if son['tahmin'] == 1 else "#22c55e"
+            durum_metin = "APNEA" if son['tahmin'] == 1 else "NORMAL"
+            durum_alani.markdown(
+                "<div style='background:#161B27;border:1px solid #1E2A3A;border-radius:10px;"
+                "padding:.6rem 1rem;display:flex;justify-content:space-between;align-items:center'>"
+                "<span style='color:#64748B;font-size:.85rem'>Minute " + str(son['dakika']) + "</span>"
+                "<span style='color:" + durum_renk + ";font-weight:700;font-size:.95rem'>" + durum_metin + " — " + f"{son['olasilik']*100:.0f}%" + "</span>"
+                "</div>",
+                unsafe_allow_html=True
+            )
+
+        progress.progress((i+1)/n_dakika, text="Analyzing... " + str(i+1) + "/" + str(n_dakika) + " minutes")
+
+    progress.empty()
+    durum_alani.empty()
     return sonuclar
 
-# ── ARAYÜZ ─────────────────────────────────────────────────────────────────────
+# ── SIDEBAR ────────────────────────────────────────────────────────────────────
+with st.sidebar:
+    st.markdown("""
+    <div style='padding:.5rem 0 1.5rem'>
+        <div style='font-size:1.1rem;font-weight:700;color:#F1F5F9;margin-bottom:4px'>🫀 ApneaWatch</div>
+        <span class='badge badge-demo'>Demo Mode</span>
+    </div>
+    """, unsafe_allow_html=True)
 
+    st.markdown("<div style='font-size:.7rem;color:#475569;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.5rem'>Device Status</div>", unsafe_allow_html=True)
+    st.markdown("""
+    <div style='background:#0D1520;border:1px solid #1E2A3A;border-radius:10px;padding:.75rem 1rem;margin-bottom:1rem'>
+        <div style='display:flex;justify-content:space-between;margin-bottom:.3rem'>
+            <span style='color:#94A3B8;font-size:.85rem'>Connection</span>
+            <span style='color:#4ade80;font-size:.85rem;font-weight:600'>● Simulated</span>
+        </div>
+        <div style='display:flex;justify-content:space-between;margin-bottom:.3rem'>
+            <span style='color:#94A3B8;font-size:.85rem'>Sampling Rate</span>
+            <span style='color:#CBD5E1;font-size:.85rem'>100 Hz</span>
+        </div>
+        <div style='display:flex;justify-content:space-between;margin-bottom:.3rem'>
+            <span style='color:#94A3B8;font-size:.85rem'>Channel</span>
+            <span style='color:#CBD5E1;font-size:.85rem'>Single-lead ECG</span>
+        </div>
+        <div style='display:flex;justify-content:space-between'>
+            <span style='color:#94A3B8;font-size:.85rem'>Format</span>
+            <span style='color:#CBD5E1;font-size:.85rem'>.npy</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("<div style='font-size:.7rem;color:#475569;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.5rem'>Model Information</div>", unsafe_allow_html=True)
+    st.markdown("""
+    <div style='background:#0D1520;border:1px solid #1E2A3A;border-radius:10px;padding:.75rem 1rem;margin-bottom:1rem'>
+        <div style='display:flex;justify-content:space-between;margin-bottom:.3rem'>
+            <span style='color:#94A3B8;font-size:.85rem'>Algorithm</span>
+            <span style='color:#93C5FD;font-size:.85rem'>XGBoost</span>
+        </div>
+        <div style='display:flex;justify-content:space-between;margin-bottom:.3rem'>
+            <span style='color:#94A3B8;font-size:.85rem'>AUC</span>
+            <span style='color:#CBD5E1;font-size:.85rem'>0.8479</span>
+        </div>
+        <div style='display:flex;justify-content:space-between;margin-bottom:.3rem'>
+            <span style='color:#94A3B8;font-size:.85rem'>Apnea Recall</span>
+            <span style='color:#CBD5E1;font-size:.85rem'>80%</span>
+        </div>
+        <div style='display:flex;justify-content:space-between'>
+            <span style='color:#94A3B8;font-size:.85rem'>Training Data</span>
+            <span style='color:#CBD5E1;font-size:.85rem'>70 records · PhysioNet</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.markdown("<div style='font-size:.7rem;color:#475569;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.5rem'>HRV Features</div>", unsafe_allow_html=True)
+    for o in ["mean_rr","std_rr","rmssd","pnn50","range_rr","lf_hf_ratio","sd2","sd1_sd2","sample_entropy","dfa_alpha"]:
+        st.markdown("<div style='font-size:.78rem;color:#475569;padding:2px 0'>· " + o + "</div>", unsafe_allow_html=True)
+
+    st.markdown("""
+    <div style='font-size:.72rem;color:#334155;border-top:1px solid #1E2A3A;padding-top:.75rem;margin-top:1rem'>
+        ⚠️ For research purposes only.<br>Does not provide medical diagnosis.<br><br>
+        Pattern Recognition Course · 2025
+    </div>
+    """, unsafe_allow_html=True)
+
+# ── ANA İÇERİK ─────────────────────────────────────────────────────────────────
 st.markdown("""
-<div style='text-align:center; padding:24px 0 8px 0'>
-    <h1 style='color:#1E2761; font-size:2.4rem; margin-bottom:6px'>🫀 Uyku Apnesi Dedektörü</h1>
-    <p style='color:#64748B; font-size:1.05rem; margin:0'>
-        Tek kanallı ECG sinyalinden uyku apnesi tespiti
-    </p>
-    <p style='color:#94A3B8; font-size:0.9rem; margin-top:4px'>
-        XGBoost · HRV Özellikleri · AUC 0.85 · PhysioNet Apnea-ECG
-    </p>
+<div class='aw-header'>
+    <div class='aw-logo'>🫀</div>
+    <div>
+        <div class='aw-title'>ApneaWatch</div>
+        <div class='aw-sub'>ECG-based sleep apnea detection system &nbsp;·&nbsp; <span class='badge badge-demo'>Demo</span></div>
+    </div>
 </div>
-<hr style='border:1px solid #E2E8F0; margin:16px 0 24px 0'>
 """, unsafe_allow_html=True)
 
-# Nasıl çalışır
-with st.expander("ℹ️ Nasıl çalışır?"):
-    st.markdown("""
-    1. **ECG yükle** — Tüm gece kaydedilmiş single-lead ECG (.npy formatında)
-    2. **Dakika dakika analiz** — Her 1 dakikalık segment için HRV özellikleri hesaplanır
-    3. **Sınıflandırma** — XGBoost modeli apne olup olmadığına karar verir
-    4. **Tanı** — Apneli dakika oranına göre normal/hafif/orta-ağır sınıflandırması yapılır
-    
-    **Özellikler:** mean_rr, std_rr, rmssd, pnn50, min_rr, range_rr, lf_hf_ratio, sd2, sd1_sd2, sample_entropy, dfa_alpha
-    """)
+st.markdown("""
+<div class='upload-zone'>
+    <div style='font-size:2rem'>📡</div>
+    <h3>Upload ECG Record</h3>
+    <p>PhysioNet Apnea-ECG format · .npy · Minimum 10 minutes</p>
+</div>
+""", unsafe_allow_html=True)
 
-st.markdown("### 📁 ECG Kaydı Yükle")
-st.caption("Tüm gece ECG kaydı — .npy formatında (minimum 60 dakika önerilir)")
-yuklenen = st.file_uploader("Dosya seç", type=["npy"], label_visibility="collapsed")
-
+yuklenen = st.file_uploader("ECG file", type=["npy"], label_visibility="collapsed")
 st.markdown("<br>", unsafe_allow_html=True)
-analiz_btn = st.button("🔬 Analiz Başlat", use_container_width=True, type="primary")
+analiz_btn = st.button("▶  Start Analysis", use_container_width=True, type="primary")
 
 if analiz_btn:
     fs = 100
 
-    if yuklenen is not None:
-        ecg_uzun = np.load(io.BytesIO(yuklenen.read())).flatten()
-        n_dk = len(ecg_uzun) // 6000
-        st.info(f"✅ {n_dk} dakikalık ECG yüklendi.")
-    else:
-        st.warning("⚠️ Dosya yüklenmedi. Lütfen bir ECG dosyası yükleyin.")
+    if yuklenen is None:
+        st.error("Please upload an ECG file first.")
         st.stop()
 
-    # İlerleme çubuğu
-    progress = st.progress(0, text="Analiz başlıyor...")
+    ecg_uzun = np.load(io.BytesIO(yuklenen.read())).flatten()
+    n_dk = len(ecg_uzun) // 6000
 
-    sonuclar = gece_analiz(ecg_uzun, fs, progress)
-    progress.empty()
-
-    gecerli = [s for s in sonuclar if s['tahmin'] is not None]
-
-    if not gecerli:
-        st.error("❌ Hiçbir segmentte R tepesi tespit edilemedi.")
+    if n_dk < 1:
+        st.error("File is too short. Minimum 1 minute of recording is required.")
         st.stop()
 
-    apne_sayisi  = sum(1 for s in gecerli if s['tahmin'] == 1)
+    st.info("**" + str(n_dk) + "-minute** ECG successfully loaded. Starting analysis...")
+    
+    sonuclar = gece_analiz_canli(ecg_uzun, fs)
+
+    gecerli       = [s for s in sonuclar if s['tahmin'] is not None]
+    apne_sayisi   = sum(1 for s in gecerli if s['tahmin'] == 1)
     normal_sayisi = sum(1 for s in gecerli if s['tahmin'] == 0)
-    apne_orani   = apne_sayisi / len(gecerli) * 100
+    apne_orani    = apne_sayisi / len(gecerli) * 100 if gecerli else 0
+
+    rr_vals = [s['rr'] for s in gecerli if s['rr'] is not None]
+    if rr_vals:
+        tum_rr    = np.concatenate(rr_vals)
+        ort_rmssd = np.sqrt(np.mean(np.diff(tum_rr)**2))
+        ort_pnn50 = np.sum(np.abs(np.diff(tum_rr)) > 50) / len(tum_rr) * 100
+        ort_hr    = 60000 / np.mean(tum_rr)
+    else:
+        ort_rmssd = ort_pnn50 = ort_hr = 0
 
     st.markdown("---")
 
-    # Sonuç kartı
     if apne_orani >= 50:
-        st.markdown(f"""
-        <div style='background:#FEE2E2;border:2px solid #DC2626;border-radius:16px;
-                    padding:28px;text-align:center;margin:16px 0'>
-            <div style='font-size:3.5rem'>🚨</div>
-            <h2 style='color:#DC2626;margin:8px 0;font-size:1.8rem'>ORTA / AĞIR UYKU APNESİ</h2>
-            <p style='color:#991B1B;font-size:1.1rem;margin:4px 0'>
-                {apne_sayisi} / {len(gecerli)} dakikada apne tespit edildi
-                &nbsp;·&nbsp; <strong>{apne_orani:.1f}%</strong>
-            </p>
-            <p style='color:#B91C1C;font-size:0.9rem;margin-top:8px'>
-                Bir uyku uzmanına başvurmanız önerilir.
-            </p>
-        </div>""", unsafe_allow_html=True)
+        st.markdown(
+            "<div class='result-card danger'>"
+            "<div class='rc-icon'>🚨</div>"
+            "<div class='rc-title'>Moderate / Severe Sleep Apnea</div>"
+            "<div class='rc-sub'>Apnea detected in " + str(apne_sayisi) + " / " + str(len(gecerli)) + " minutes · <strong>" + f"{apne_orani:.1f}" + "%</strong></div>"
+            "<div class='rc-sub' style='margin-top:.5rem;font-size:.8rem'>Consulting a sleep specialist is highly recommended.</div>"
+            "</div>", unsafe_allow_html=True)
     elif apne_orani >= 36:
-        st.markdown(f"""
-        <div style='background:#FEF3C7;border:2px solid #F59E0B;border-radius:16px;
-                    padding:28px;text-align:center;margin:16px 0'>
-            <div style='font-size:3.5rem'>⚠️</div>
-            <h2 style='color:#D97706;margin:8px 0;font-size:1.8rem'>HAFİF UYKU APNESİ</h2>
-            <p style='color:#92400E;font-size:1.1rem;margin:4px 0'>
-                {apne_sayisi} / {len(gecerli)} dakikada apne tespit edildi
-                &nbsp;·&nbsp; <strong>{apne_orani:.1f}%</strong>
-            </p>
-            <p style='color:#B45309;font-size:0.9rem;margin-top:8px'>
-                Takip önerilir.
-            </p>
-        </div>""", unsafe_allow_html=True)
+        st.markdown(
+            "<div class='result-card warning'>"
+            "<div class='rc-icon'>⚠️</div>"
+            "<div class='rc-title'>Mild Sleep Apnea</div>"
+            "<div class='rc-sub'>Apnea detected in " + str(apne_sayisi) + " / " + str(len(gecerli)) + " minutes · <strong>" + f"{apne_orani:.1f}" + "%</strong></div>"
+            "<div class='rc-sub' style='margin-top:.5rem;font-size:.8rem'>Regular clinical follow-up is recommended.</div>"
+            "</div>", unsafe_allow_html=True)
     else:
-        st.markdown(f"""
-        <div style='background:#D1FAE5;border:2px solid #34D399;border-radius:16px;
-                    padding:28px;text-align:center;margin:16px 0'>
-            <div style='font-size:3.5rem'>✅</div>
-            <h2 style='color:#065F46;margin:8px 0;font-size:1.8rem'>NORMAL UYKU</h2>
-            <p style='color:#047857;font-size:1.1rem;margin:4px 0'>
-                {apne_sayisi} / {len(gecerli)} dakikada apne tespit edildi
-                &nbsp;·&nbsp; <strong>{apne_orani:.1f}%</strong>
-            </p>
-        </div>""", unsafe_allow_html=True)
+        st.markdown(
+            "<div class='result-card success'>"
+            "<div class='rc-icon'>✅</div>"
+            "<div class='rc-title'>Normal Sleep Pattern</div>"
+            "<div class='rc-sub'>Apnea detected in " + str(apne_sayisi) + " / " + str(len(gecerli)) + " minutes · <strong>" + f"{apne_orani:.1f}" + "%</strong></div>"
+            "</div>", unsafe_allow_html=True)
 
-    # Özet metrikler
-    st.markdown("#### 📊 Özet")
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Toplam Dakika",  f"{len(gecerli)}")
-    m2.metric("Apneli Dakika",  f"{apne_sayisi}")
-    m3.metric("Normal Dakika",  f"{normal_sayisi}")
-    m4.metric("Apne Oranı",     f"{apne_orani:.1f}%")
+    c1, c2, c3, c4, c5 = st.columns(5)
+    for col, val, lbl in [
+        (c1, str(len(gecerli)),          "Total Minutes"),
+        (c2, str(apne_sayisi),           "Apnea Minutes"),
+        (c3, str(normal_sayisi),         "Normal Minutes"),
+        (c4, f"{ort_hr:.0f} bpm",        "Avg Heart Rate"),
+        (c5, f"{ort_rmssd:.1f} ms",      "RMSSD"),
+    ]:
+        col.markdown(
+            "<div class='metric-box'>"
+            "<div class='mb-val'>" + val + "</div>"
+            "<div class='mb-lbl'>" + lbl + "</div>"
+            "</div>", unsafe_allow_html=True)
 
-    # Dakika dakika harita
-    st.markdown("#### 🗺️ Gece Boyu Apne Haritası")
-    fig_w = max(10, len(gecerli) * 0.15)
-    fig, ax = plt.subplots(figsize=(min(fig_w, 20), 3))
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("#### Overnight Apnea Map")
+
+    harita_html = "<div class='night-map'>"
     for s in gecerli:
-        renk  = "#DC2626" if s['tahmin'] == 1 else "#10B981"
-        alpha = s['olasilik'] if s['tahmin'] == 1 else (1 - s['olasilik'])
-        ax.bar(s['dakika'], 1, color=renk, alpha=max(0.35, alpha), width=0.9)
-    apne_patch   = mpatches.Patch(color='#DC2626', label='Apne')
-    normal_patch = mpatches.Patch(color='#10B981', label='Normal')
-    ax.legend(handles=[apne_patch, normal_patch], loc='upper right', fontsize=9)
-    ax.set_xlabel("Dakika")
-    ax.set_ylabel("")
-    ax.set_yticks([])
-    ax.set_xlim(0, len(gecerli) + 1)
-    ax.spines[['top','right','left']].set_visible(False)
-    ax.set_facecolor("#F8FAFC")
-    fig.patch.set_facecolor("#F8FAFC")
+        if s['tahmin'] == 1:
+            alpha = max(0.4, s['olasilik'])
+            renk  = "rgba(239,68,68," + f"{alpha:.2f}" + ")"
+        else:
+            alpha = max(0.35, 1 - s['olasilik'])
+            renk  = "rgba(34,197,94," + f"{alpha:.2f}" + ")"
+        durum = "Apnea" if s['tahmin'] == 1 else "Normal"
+        prob  = f"{s['olasilik']*100:.0f}"
+        harita_html += "<div class='nm-min' style='background:" + renk + "' title='Min " + str(s['dakika']) + ": " + durum + " (" + prob + "%)'></div>"
+    harita_html += "</div>"
+    harita_html += (
+        "<div style='display:flex;gap:16px;font-size:.78rem;color:#64748B;margin-top:4px'>"
+        "<span><span style='display:inline-block;width:10px;height:10px;border-radius:2px;background:#ef4444;margin-right:5px'></span>Apnea</span>"
+        "<span><span style='display:inline-block;width:10px;height:10px;border-radius:2px;background:#22c55e;margin-right:5px'></span>Normal</span>"
+        "</div>"
+    )
+    st.markdown(harita_html, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("#### Minute-by-Minute Apnea Probability")
+
+    fig, ax = plt.subplots(figsize=(14, 3))
+    fig.patch.set_facecolor('#0F1117')
+    ax.set_facecolor('#0D1520')
+    dakikalar   = [s['dakika']   for s in gecerli]
+    olasiliklar = [s['olasilik'] for s in gecerli]
+    renkler     = ['#ef4444' if s['tahmin'] == 1 else '#22c55e' for s in gecerli]
+    ax.bar(dakikalar, olasiliklar, color=renkler, width=0.85, alpha=0.85)
+    ax.axhline(0.55, color='#F59E0B', linewidth=1, linestyle='--', label='Threshold (0.55)')
+    ax.set_ylim(0, 1)
+    ax.set_xlabel("Minute", color='#64748B', fontsize=9)
+    ax.set_ylabel("Apnea Probability", color='#64748B', fontsize=9)
+    ax.tick_params(colors='#64748B', labelsize=8)
+    for spine in ax.spines.values():
+        spine.set_edgecolor('#1E2A3A')
+    ax.legend(fontsize=8, facecolor='#161B27', labelcolor='#94A3B8', edgecolor='#1E2A3A')
     st.pyplot(fig)
     plt.close()
 
-    # Detay tablosu
-    with st.expander("📋 Dakika Dakika Detay"):
-        cols = st.columns(4)
+    with st.expander("📋 Minute-by-Minute Details"):
+        cols = st.columns(5)
         for idx, s in enumerate(gecerli):
-            durum = "🔴 Apne" if s['tahmin'] == 1 else "🟢 Normal"
-            cols[idx % 4].write(f"**Dk {s['dakika']}:** {durum} ({s['olasilik']*100:.0f}%)")
-
-# Model bilgisi
-st.markdown("---")
-col1, col2, col3 = st.columns(3)
-col1.metric("Model AUC", "0.8479")
-col2.metric("Apne Recall", "%80")
-col3.metric("Veri Seti", "70 kayıt")
-
-st.markdown("""
-<p style='text-align:center; color:#94A3B8; font-size:0.8rem; margin-top:16px'>
-    ⚠️ Bu sistem yalnızca araştırma amaçlıdır, tıbbi tanı koymaz.
-    <br>Pattern Recognition Dersi Projesi · PhysioNet Apnea-ECG Veri Seti
-</p>
-""", unsafe_allow_html=True)
+            durum = "🔴 Apnea" if s['tahmin'] == 1 else "🟢 Normal"
+            prob  = f"{s['olasilik']*100:.0f}"
+            cols[idx % 5].markdown(
+                "<div style='font-size:.8rem;color:#CBD5E1;padding:2px 0'><b>Min " + str(s['dakika']) + ":</b> " + durum + " (" + prob + "%)</div>",
+                unsafe_allow_html=True)
